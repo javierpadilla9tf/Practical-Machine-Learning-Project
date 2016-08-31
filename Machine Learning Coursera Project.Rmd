@@ -1,0 +1,92 @@
+---
+title: "Machine Learning Coursera Project"
+author: "Javier Padilla Jr"
+date: "August 30, 2016"
+output: pdf_document
+---
+
+The application of instruments such as Jawbone Up, Nike FuelBand and Fitbit makes it possible to collect a large amount of data about personal activity in a cost effective manner. 
+
+In this project, data will be measured from accelerometers on the belt, forearm, arm, and dumbbell of 6 participants to predict the manner in which they did the exercise.
+
+
+```{r}
+library(Hmisc)
+library(caret)
+library(randomForest)
+library(foreach)
+library(doParallel)
+set.seed(2048)
+options(warn=-1)
+```
+
+Load the data both from the provided training and test data provided by COURSERA.
+Some values contained a "#DIV/0!" that I replaced with an NA value.
+
+```{r}
+training_data <- read.csv("pml-training.csv", na.strings=c("#DIV/0!") )
+evaluation_data <- read.csv("pml-testing.csv", na.strings=c("#DIV/0!") )
+```
+
+Cast all columns to the number 8 to the end to be numeric.
+
+```{r}
+for(i in c(8:ncol(training_data)-1)) {training_data[,i] = as.numeric(as.character(training_data[,i]))}
+
+for(i in c(8:ncol(evaluation_data)-1)) {evaluation_data[,i] = as.numeric(as.character(evaluation_data[,i]))}
+```
+
+Determine and display out feature set.
+
+```{r}
+feature_set <- colnames(training_data[colSums(is.na(training_data)) == 0])[-(1:7)]
+model_data <- training_data[feature_set]
+feature_set
+```
+
+Next, model the data built from our feature set.
+
+```{r}
+idx <- createDataPartition(y=model_data$classe, p=0.75, list=FALSE )
+training <- model_data[idx,]
+testing <- model_data[-idx,]
+```
+
+There are several examples of how to perform parallel processing with random forests in R. This enabled the project's predications.
+
+```{r}
+registerDoParallel()
+x <- training[-ncol(training)]
+y <- training$classe
+
+rf <- foreach(ntree=rep(150, 6), .combine=randomForest::combine, .packages='randomForest') %dopar% {
+randomForest(x, y, ntree=ntree) 
+}
+```
+
+
+Conclusions and Test Data Submit
+--------------------------------
+
+Overall, it can be seen from the confusion matrix that this model is very accurate. The test data was around 99% accurate I expected nearly all of the submitted test cases to be correct.  It turned out they 
+were all correct. Thank you for your time.
+
+
+```{r}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+
+x <- evaluation_data
+x <- x[feature_set[feature_set!='classe']]
+answers <- predict(rf, newdata=x)
+
+answers
+
+pml_write_files(answers)
+```
